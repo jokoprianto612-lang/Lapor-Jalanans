@@ -307,7 +307,7 @@ cd backend
 npm install
 npx prisma generate
 npx prisma migrate dev
-ADMIN_EMAIL=admin@laporjalan.id ADMIN_PASSWORD=password123 npx prisma db seed
+ADMIN_EMAIL=admin@laporjalan.id ADMIN_PASSWORD='ganti-dengan-password-kuat' npx prisma db seed
 npm run dev
 
 # 4. Frontend (terminal baru)
@@ -326,7 +326,7 @@ npm run dev
 ```bash
 docker-compose up -d
 docker-compose exec backend npx prisma migrate deploy
-docker-compose exec -e ADMIN_EMAIL=admin@laporjalan.id -e ADMIN_PASSWORD=password123 backend npx prisma db seed
+docker-compose exec -e ADMIN_EMAIL=admin@laporjalan.id -e ADMIN_PASSWORD='ganti-dengan-password-kuat' backend npx prisma db seed
 ```
 
 ## Testing

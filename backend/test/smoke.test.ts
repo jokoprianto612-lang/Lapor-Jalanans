@@ -36,7 +36,8 @@ test('CSRF TIDAK memblokir login tanpa cookie (bug lama: 403 CSRF_INVALID)', asy
   const res = await app.inject({
     method: 'POST',
     url: '/api/v1/auth/login',
-    payload: { email: 'x@example.com', password: 'password123' },
+    // payload dummy — yang diuji: request sampai ke handler, bukan kredensialnya
+    payload: { email: 'x@example.com', password: 'dummy-not-a-credential' },
   });
   assert.notEqual(res.statusCode, 403, `login tidak boleh 403, dapat ${res.statusCode}: ${res.body}`);
   const body = res.json();

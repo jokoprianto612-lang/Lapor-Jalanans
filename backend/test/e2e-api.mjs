@@ -146,7 +146,7 @@ async function main() {
   const reg = await api('POST', '/auth/register', {
     name: 'E2E Test User',
     email: `e2e-${Date.now()}@laporjalan.id`,
-    password: 'password123'
+    password: `e2e-pass-${Date.now()}`
   });
   console.log(`[${reg.status}] POST /auth/register ${reg.status === 200 ? 'OK' : 'FAIL'}`);
 
