@@ -11,6 +11,34 @@ const nextConfig = {
   async headers() {
     return [
       {
+        // Security headers for every response.
+        source: '/:path*',
+        headers: [
+          // CSP: allow self + OpenStreetMap tiles/fonts. 'unsafe-inline' is
+          // needed for Next.js inline runtime + Tailwind-injected styles.
+          {
+            key: 'Content-Security-Policy',
+            value: [
+              "default-src 'self'",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+              "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+              "font-src 'self' https://fonts.gstatic.com data:",
+              "img-src 'self' data: blob: https://*.tile.openstreetmap.org https://nominatim.openstreetmap.org",
+              "connect-src 'self' https://nominatim.openstreetmap.org https://integrate.api.nvidia.com",
+              "frame-ancestors 'none'",
+              "base-uri 'self'",
+              "form-action 'self'",
+            ].join('; '),
+          },
+          { key: 'X-Frame-Options', value: 'DENY' },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: 'Permissions-Policy', value: 'camera=(self), geolocation=(self), microphone=(self)' },
+          { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
+          { key: 'X-DNS-Prefetch-Control', value: 'off' },
+        ],
+      },
+      {
         source: '/sw.js',
         headers: [
           { key: 'Cache-Control', value: 'public, max-age=0, must-revalidate' },

@@ -13,14 +13,16 @@ export async function POST(req: NextRequest) {
       return error('UNAUTHORIZED', 'No session cookie', 401);
     }
 
-    const payload = verifyToken(cookieToken);
+    // verifyToken re-reads the DB and rejects revoked tokens (tokenVersion
+    // mismatch), so a valid result here means the session is still live.
+    const payload = await verifyToken(cookieToken);
     if (!payload) {
-      return error('UNAUTHORIZED', 'Invalid session cookie', 401);
+      return error('TOKEN_REVOKED', 'Session revoked or invalid, please login again', 401);
     }
 
     const dbUser = await prisma.user.findUnique({ where: { id: payload.id } });
-    if (!dbUser || dbUser.tokenVersion !== (payload as any).v) {
-      return error('TOKEN_REVOKED', 'Session revoked, please login again', 401);
+    if (!dbUser) {
+      return error('UNAUTHORIZED', 'User no longer exists', 401);
     }
 
     const token = signToken({ id: dbUser.id, email: dbUser.email, role: dbUser.role, authorityId: dbUser.authorityId || undefined, tokenVersion: dbUser.tokenVersion });

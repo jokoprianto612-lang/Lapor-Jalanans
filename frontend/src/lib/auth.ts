@@ -1,6 +1,7 @@
 // Auth helpers for Vercel API routes
 import jwt from 'jsonwebtoken';
 import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/db';
 
 const JWT_SECRET = process.env.JWT_SECRET || '';
 
@@ -15,6 +16,7 @@ export interface AuthUser {
   authorityId?: string;
 }
 
+/** Sign a JWT. Payload is FLAT: { id, email, roles, authorityId?, v }. */
 export function signToken(user: { id: string; email: string; role: string; authorityId?: string; tokenVersion: number }): string {
   return jwt.sign(
     {
@@ -29,18 +31,42 @@ export function signToken(user: { id: string; email: string; role: string; autho
   );
 }
 
-export function verifyToken(token: string): AuthUser | null {
+/**
+ * Verify JWT signature + expiry, then load the user from DB.
+ *
+ * The token carries `v` (tokenVersion). We re-read the DB on every request so
+ * that:
+ *   - changing a password (which increments tokenVersion) revokes old tokens
+ *   - a role change takes effect immediately, not after the 7-day token expiry
+ * Roles ALWAYS come from the DB row, never from the token body.
+ *
+ * Returns null when: no token, bad signature, expired, user deleted,
+ * or tokenVersion mismatch (revoked).
+ */
+export async function verifyToken(token: string): Promise<AuthUser | null> {
+  let payload: any;
   try {
-    const payload = jwt.verify(token, JWT_SECRET) as any;
-    return {
-      id: payload.id,
-      email: payload.email,
-      roles: payload.roles || [],
-      authorityId: payload.authorityId,
-    };
+    payload = jwt.verify(token, JWT_SECRET);
   } catch {
     return null;
   }
+
+  if (!payload?.id) return null;
+
+  const dbUser = await prisma.user.findUnique({
+    where: { id: payload.id },
+    select: { id: true, email: true, role: true, authorityId: true, tokenVersion: true },
+  });
+
+  if (!dbUser) return null;
+  if (dbUser.tokenVersion !== (payload.v ?? 0)) return null; // token revoked
+
+  return {
+    id: dbUser.id,
+    email: dbUser.email,
+    roles: [dbUser.role],
+    authorityId: dbUser.authorityId || undefined,
+  };
 }
 
 export function getTokenFromRequest(req: NextRequest): string | null {
