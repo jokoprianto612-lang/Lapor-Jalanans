@@ -99,16 +99,18 @@ export async function analyzeImage(
     // Try AI vision API if configured
     if (VISION_API_KEY && VISION_API_ENDPOINT) {
       const result = await callVisionAPI(imageBase64, location);
-      return span.end(result) as any;
+      span.end(result); // record span (discarded)
+      return result;
     }
     
     // Fallback: Rule-based analysis from base64 metadata
     const result = await ruleBasedAnalysis(imageBase64, location);
-    return span.end(result) as any;
+    span.end(result); // record span (discarded)
+    return result;
   } catch (error) {
     console.error('[Vision] Analysis failed:', error);
     // Return safe fallback
-    return span.end({
+    const fallback: AIVisionAnalysis = {
       damageType: 'OTHER',
       severity: 'LOW',
       confidence: 0.3,
@@ -120,7 +122,9 @@ export async function analyzeImage(
         recommendedAction: 'Isi detail kerusakan secara manual'
       },
       detectedObjects: []
-    }) as any;
+    };
+    span.end(fallback); // record span (discarded)
+    return fallback;
   }
 }
 
