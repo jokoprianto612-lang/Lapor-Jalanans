@@ -1,0 +1,219 @@
+// Prisma Schema for Lapor Jalan - AI-powered public infrastructure reporting
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ReportStatus {
+  SUBMITTED
+  ANALYZING
+  VERIFIED
+  ROUTED
+  IN_PROGRESS
+  RESOLVED
+  REJECTED
+  CLOSED
+}
+
+enum DamageType {
+  POTHOLE
+  CRACK
+  SUBSIDENCE
+  DRAINAGE
+  SIGN_DAMAGE
+  LIGHTING
+  OTHER
+}
+
+enum Severity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum AuthorityType {
+  RT
+  RW
+  KELURAHAN
+  KECAMATAN
+  DINAS_PU
+  DINAS_BINA_MARGA
+  DINAS_CIPTA_KARYA
+  DINAS_PERHUBUNGAN
+  BPBD
+  POLISI
+  PLN
+  PDAM
+  TELKOM
+  OTHER
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String   @unique
+  phone         String?  @unique
+  name          String
+  avatar        String?
+  passwordHash  String   // pbkdf2-sha512: "saltHex:hashHex"
+  tokenVersion  Int      @default(0) // dinaikkan saat ganti password → mencabut semua token lama
+  role          String    @default("CITIZEN") // CITIZEN, ADMIN, AUTHORITY_STAFF
+  authorityId   String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  reports       Report[]  @relation("UserReports")
+  assignedReports Report[] @relation("AssignedReports")
+  sessions      Session[]
+  memories      UserMemory[]
+  notifications Notification[]
+  reportUpdates ReportUpdate[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  messages  Message[]
+
+  @@map("sessions")
+}
+
+model Message {
+  id        String   @id @default(uuid())
+  sessionId String
+  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role      String   // USER, ASSISTANT, SYSTEM, TOOL
+  content   String
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@map("messages")
+}
+
+model UserMemory {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  key       String
+  value     String
+  category  String   // PREFERENCE, TOPIC, PATTERN
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, key])
+  @@map("user_memories")
+}
+
+model Report {
+  id              String       @id @default(uuid())
+  reporterId      String
+  reporter        User         @relation("UserReports", fields: [reporterId], references: [id])
+  assigneeId      String?
+  assignee        User?        @relation("AssignedReports", fields: [assigneeId], references: [id])
+  authorityType   AuthorityType
+  authorityName   String
+  authorityContact String?
+  title           String
+  description     String
+  damageType      DamageType
+  severity        Severity
+  status          ReportStatus @default(SUBMITTED)
+  latitude        Float
+  longitude       Float
+  address         String
+  images          String[]     // URLs to uploaded images
+  aiAnalysis      Json?        // AI vision analysis results
+  aiConfidence    Float?
+  trackingCode    String       @unique @default(uuid())
+  qrCode          String?      // QR code for tracking
+  submittedAt     DateTime     @default(now())
+  verifiedAt      DateTime?
+  routedAt        DateTime?
+  resolvedAt      DateTime?
+  closedAt        DateTime?
+  updates         ReportUpdate[]
+
+  @@map("reports")
+}
+
+model ReportUpdate {
+  id          String   @id @default(uuid())
+  reportId    String
+  report      Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  authorId    String
+  author      User     @relation(fields: [authorId], references: [id])
+  status      ReportStatus
+  message     String
+  images      String[] // Progress photos
+  createdAt   DateTime @default(now())
+
+  @@map("report_updates")
+}
+
+model Authority {
+  id          String       @id @default(uuid())
+  name        String
+  type        AuthorityType
+  email       String?
+  phone       String?
+  whatsapp    String?
+  address     String
+  latitude    Float
+  longitude   Float
+  radius      Float        @default(5000) // Service radius in meters
+  isActive    Boolean      @default(true)
+  contactPerson String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@map("authorities")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String   // EMAIL, WHATSAPP, SMS, PUSH, IN_APP
+  title     String
+  message   String
+  data      Json?
+  isRead    Boolean  @default(false)
+  sentAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@map("notifications")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  action    String
+  entity    String
+  entityId  String
+  oldData   Json?
+  newData   Json?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@map("audit_logs")
+}
+
+model SystemConfig {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     Json
+  description String?
+  updatedAt DateTime @updatedAt
+
+  @@map("system_config")
+}

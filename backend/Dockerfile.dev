@@ -1,0 +1,33 @@
+# Backend Development Dockerfile
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install dependencies for native modules
+RUN apk add --no-cache \
+    python3 \
+    make \
+    g++ \
+    postgresql-client \
+    openssl
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm config set allow-scripts true && npm install
+
+# Install prisma CLI globally
+RUN npm install -g prisma
+
+# Copy source code
+COPY . .
+
+# Generate Prisma client
+RUN npx prisma generate
+
+# Expose port
+EXPOSE 3001
+
+# Start development server
+CMD ["npm", "run", "dev"]

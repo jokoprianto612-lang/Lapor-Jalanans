@@ -1,0 +1,82 @@
+# Lapor Jalan - Production Stack
+#
+# Jalankan:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+# Atau file ini saja (self-contained):
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Wajib di .env: JWT_SECRET, SESSION_SECRET, POSTGRES_PASSWORD (lihat .env.example).
+# Belum bisa diuji di mesin developer (tanpa Docker) — struktur mengikuti pola
+# docker-compose.yml yang sudah tervalidasi parse.
+
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: lapor-jalan-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: lapor_jalan
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?isi POSTGRES_PASSWORD di .env}
+    # Tidak dipublish ke host — hanya diakses container lain via jaringan compose
+    expose:
+      - "5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - lapor-jalan-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: lapor-jalan-backend
+    restart: unless-stopped
+    env_file:
+      - ./.env
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:?isi POSTGRES_PASSWORD di .env}@postgres:5432/lapor_jalan?schema=public
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET wajib di .env}
+      - SESSION_SECRET=${SESSION_SECRET:?SESSION_SECRET wajib di .env}
+      - FRONTEND_URL=${NEXT_PUBLIC_FRONTEND_URL:-http://localhost:3000}
+      - PORT=3001
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: sh -c "prisma migrate deploy && node dist/index.js"
+    networks:
+      - lapor-jalan-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Di-inline ke bundle client saat build — harus sama dengan URL publik aplikasi
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001/api/v1}
+        NEXT_PUBLIC_FRONTEND_URL: ${NEXT_PUBLIC_FRONTEND_URL:-http://localhost:3000}
+    container_name: lapor-jalan-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - lapor-jalan-network
+
+volumes:
+  postgres_data:
+
+networks:
+  lapor-jalan-network:
+    driver: bridge
